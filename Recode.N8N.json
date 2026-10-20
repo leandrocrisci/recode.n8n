@@ -1,0 +1,1010 @@
+{
+  "name": "Recode.N8N",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Iniciar",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        8352,
+        800
+      ],
+      "id": "4b7dec66-510c-41cb-b6cc-0f1191078352"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "baseUrl",
+              "value": "http://host.docker.internal:8090",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "geminiModel",
+              "value": "gemini-2.5-flash",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "qtdEscolas",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "a4",
+              "name": "qtdAlunos",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "id": "a5",
+              "name": "urlEndereco",
+              "value": "/api/enderecos-escolas/escola/{escolaId}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "urlAvaliacao",
+              "value": "/api/avaliacoes-qualidade/escola/{escolaId}",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "urlCurso",
+              "value": "/api/cursos/escola/{escolaId}",
+              "type": "string"
+            },
+            {
+              "id": "a8",
+              "name": "urlAluno",
+              "value": "/api/alunos",
+              "type": "string"
+            },
+            {
+              "id": "a9",
+              "name": "urlAvaliacaoCurso",
+              "value": "/api/avaliacoes-cursos/curso/{cursoId}",
+              "type": "string"
+            },
+            {
+              "id": "a10",
+              "name": "urlProfessor",
+              "value": "/api/professores/escola/{escolaId}",
+              "type": "string"
+            },
+            {
+              "id": "a11",
+              "name": "qtdProfessores",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "id": "a12",
+              "name": "maxReparos",
+              "value": 10,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        8576,
+        800
+      ],
+      "id": "357c4b59-f075-4663-8916-ffa9ae825904"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.baseUrl }}/api/escolas",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Listar Escolas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8800,
+        800
+      ],
+      "alwaysOutputData": true,
+      "id": "5ad66634-fbb7-4a46-ba15-25c19c693e03"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nlet escolas = $input.all().map(i => i.json);\nif (escolas.length === 1 && Array.isArray(escolas[0].content)) escolas = escolas[0].content; // caso a API seja paginada\nconst nomes = escolas.map(e => e.nome).filter(Boolean);\nconst cfg = $('Config').first().json;\n\n// Campos iguais aos formulários do site (Escolas, Endereços, Avaliações de Qualidade, Cursos, Alunos)\nconst modelo = {\n  escolas: [\n    {\n      escola: { nome: \"string\", tipo: \"Pública, Estadual, Municipal, Técnica, Privada ou Federal\", telefone: \"(XX) XXXXX-XXXX\", email: \"string\" },\n      endereco: { cep: \"00000-000\", logradouro: \"string\", numero: \"string\", bairro: \"string\", cidade: \"string\", estado: \"UF\" },\n      avaliacao: { nota: \"inteiro de 1 a 5\", comentario: \"string\", dataAvaliacao: \"AAAA-MM-DD\" },\n      curso: { nome: \"string\", descricao: \"string curta\", cargaHoraria: \"inteiro em horas\" },\n      avaliacaoCurso: { nota: \"número de 0 a 10, pode ter uma casa decimal\", observacao: \"string\", dataAvaliacao: \"AAAA-MM-DD\" },\n      professores: [ { nome: \"string\", email: \"string\", telefone: \"(XX) XXXXX-XXXX\", especialidade: \"disciplina, ex: Matemática\", biografia: \"formação e experiência, 1 frase\" } ],\n      alunos: [\n        { area: \"urbana ou rural\", distanciaEscola: \"número em km, ex: 5.2\", tipoTransporte: \"a_pe, transporte_escolar, transporte_publico ou proprio\", tempoDeslocamentoMinutos: \"inteiro\" }\n      ]\n    }\n  ]\n};\n\nconst prompt = `Você gera dados fictícios para um sistema brasileiro de avaliação de escolas.\n\nEscolas já cadastradas (NÃO repita nem copie estes nomes):\n${nomes.length ? nomes.map(n => '- ' + n).join('\\n') : '(nenhuma)'}\n\nCrie exatamente ${cfg.qtdEscolas} escolas NOVAS, com nomes diferentes dos acima e entre si, no mesmo estilo dos nomes existentes.\nPara cada escola gere: os dados da escola, 1 endereço realista (cidade brasileira real), 1 avaliação de qualidade (nota inteira de 1 a 5), 1 curso oferecido pela escola, 1 avaliação desse curso (nota de 0 a 10), exatamente ${cfg.qtdProfessores} professores (nome brasileiro, especialidade e biografia curta) e exatamente ${cfg.qtdAlunos} alunos. Os alunos NÃO têm nome: gere só os indicadores de deslocamento até a escola, de forma coerente (aluno de área rural tende a ter distância e tempo maiores).\n\nResponda SOMENTE com JSON válido, neste formato:\n${JSON.stringify(modelo, null, 2)}`;\n\nreturn [{ json: { prompt, nomes } }];\n"
+      },
+      "name": "Montar Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9024,
+        800
+      ],
+      "id": "8d3a541b-1298-4e4a-b6ad-5fa289a117a5"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst resp = $input.first().json;\n\n// Aceita os dois formatos: nó Gemini do n8n ({ text }) ou chamada HTTP direta ({ candidates })\nlet bruto = resp.text ?? resp.output ?? resp.response ?? resp.content;\nif (bruto === undefined) {\n  bruto = (resp.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');\n}\n\nlet dados;\nif (typeof bruto === 'string') {\n  const texto = bruto.replace(/```json|```/g, '').trim();\n  if (!texto) throw new Error('Gemini não retornou conteúdo: ' + JSON.stringify(resp).slice(0, 1500));\n  try {\n    dados = JSON.parse(texto);\n  } catch (e) {\n    throw new Error('JSON do Gemini inválido ou cortado (' + e.message + '). Final da resposta: ' + texto.slice(-300));\n  }\n} else {\n  dados = bruto;\n}\n\nconst lista = Array.isArray(dados) ? dados : dados?.escolas;\nif (!Array.isArray(lista)) throw new Error('Formato inesperado, sem a lista \"escolas\": ' + JSON.stringify(dados).slice(0, 500));\n\nconst cfg = $('Config').first().json;\nconst existentes = new Set($('Montar Prompt').first().json.nomes.map(n => n.trim().toLowerCase()));\n\nconst TIPOS = ['Pública', 'Estadual', 'Municipal', 'Técnica', 'Privada', 'Federal'];\nconst TRANSPORTES = ['a_pe', 'transporte_escolar', 'transporte_publico', 'proprio'];\n\nconst normalizar = (e) => {\n  const nota = Math.round(Number(e.avaliacao?.nota));\n  return {\n    escola: { ...e.escola, tipo: TIPOS.includes(e.escola.tipo) ? e.escola.tipo : 'Pública' },\n    endereco: e.endereco || {},\n    avaliacao: {\n      nota: Math.min(5, Math.max(1, Number.isFinite(nota) ? nota : 3)),\n      comentario: e.avaliacao?.comentario || null,\n      dataAvaliacao: e.avaliacao?.dataAvaliacao || null,\n    },\n    curso: {\n      nome: e.curso?.nome || 'Ensino Regular',\n      descricao: e.curso?.descricao || '',\n      cargaHoraria: Math.round(Number(e.curso?.cargaHoraria)) || null,\n    },\n    avaliacaoCurso: {\n      nota: Math.min(10, Math.max(0, Math.round((Number(e.avaliacaoCurso?.nota) || 7) * 10) / 10)),\n      observacao: e.avaliacaoCurso?.observacao || null,\n      dataAvaliacao: e.avaliacaoCurso?.dataAvaliacao || null,\n    },\n    professores: (e.professores || []).filter(p => p?.nome).slice(0, cfg.qtdProfessores).map(p => ({\n      nome: p.nome,\n      email: p.email || null,\n      telefone: p.telefone || null,\n      especialidade: p.especialidade || null,\n      biografia: p.biografia || null,\n    })),\n    alunos: (e.alunos || []).slice(0, cfg.qtdAlunos).map(a => ({\n      area: String(a.area || '').toLowerCase() === 'rural' ? 'rural' : 'urbana',\n      distanciaEscola: Math.round((Number(a.distanciaEscola) || 0) * 100) / 100,\n      tipoTransporte: TRANSPORTES.includes(a.tipoTransporte) ? a.tipoTransporte : 'a_pe',\n      tempoDeslocamentoMinutos: Math.round(Number(a.tempoDeslocamentoMinutos)) || 0,\n    })),\n  };\n};\n\nreturn lista\n  .filter(e => e?.escola?.nome && !existentes.has(e.escola.nome.trim().toLowerCase()))\n  .slice(0, cfg.qtdEscolas)\n  .map(e => ({ json: normalizar(e) }));\n"
+      },
+      "name": "Extrair Escolas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9888,
+        624
+      ],
+      "id": "45a7307a-b4b8-4a41-a5a2-50cc1cab66ac"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl }}/api/escolas",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.escola) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "name": "Criar Escola",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9680,
+        800
+      ],
+      "id": "992ee725-8f22-4337-9891-675a733e0b6d",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl + $('Config').first().json.urlEndereco.replace('{escolaId}', $('Criar Escola').item.json.id) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Extrair Escolas').item.json.endereco, { escola: { id: $('Criar Escola').item.json.id } })) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "name": "Criar Endereço",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9904,
+        800
+      ],
+      "id": "ea78dfba-f3a7-43ed-b900-353604e137d4",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl + $('Config').first().json.urlAvaliacao.replace('{escolaId}', $('Criar Escola').item.json.id) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Extrair Escolas').item.json.avaliacao) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 3
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "name": "Criar Avaliação",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10112,
+        800
+      ],
+      "id": "41db90af-3428-44de-a40d-101e6541358d",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst escolas = $('Extrair Escolas').all();\nconst escolasCriadas = $('Criar Escola').all();\nconst cursosCriados = $('Criar Curso').all();\nconst out = [];\nescolas.forEach((e, i) => {\n  const escolaId = escolasCriadas[i].json.id;\n  const cursoId = cursosCriados[i].json.id;\n  (e.json.alunos || []).forEach(a => {\n    out.push({ json: { ...a, escola: { id: escolaId }, curso: { id: cursoId } } });\n  });\n});\nreturn out;\n"
+      },
+      "name": "Expandir Alunos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10784,
+        800
+      ],
+      "id": "2c0c3dab-dd2b-45fd-9aa0-fb399bc1c68d"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl + $('Config').first().json.urlAluno }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Criar Aluno",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11008,
+        800
+      ],
+      "id": "21754937-97fd-4775-8924-daa3e3a79f06"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst todos = (nome) => { try { return $(nome).all(); } catch (e) { return []; } }; // nó que não rodou (ramo não executado)\nconst v = $('Validar Escolas').first().json;\n\nconst MAPA = { 'endereço': 'endereco', 'aluno': 'aluno', 'avaliação de qualidade': 'avaliacao' };\nconst feitos = {};\nconst registros = { enderecos: 0, avaliacoes: 0, alunos: 0 };\nfor (const i of todos('Montar Reparos')) {\n  const { escolaId, tipo } = i.json;\n  (feitos[String(escolaId)] ||= new Set()).add(tipo);\n  if (tipo === 'endereco') registros.enderecos++;\n  if (tipo === 'avaliacao') registros.avaliacoes++;\n  if (tipo === 'aluno') registros.alunos++;\n}\nconst restantes = v.pendencias.filter(p => !p.falta.every(f => feitos[String(p.id)]?.has(MAPA[f])));\n\nreturn [{ json: {\n  escolasCriadas: todos('Criar Escola').length,\n  enderecosCriados: todos('Criar Endereço').length,\n  avaliacoesCriadas: todos('Criar Avaliação').length,\n  cursosCriados: todos('Criar Curso').length,\n  avaliacoesCursoCriadas: todos('Criar Avaliação do Curso').length,\n  alunosCriados: todos('Criar Aluno').length,\n  professoresCriados: todos('Criar Professor').length,\n  validacao: { totalEscolas: v.totalEscolas, existePendencia: v.existePendencia, pendencias: v.pendencias },\n  reparo: {\n    executado: v.existePendencia,\n    escolasReparadas: v.pendencias.length - restantes.length,\n    registrosCriados: registros,\n    restantes\n  }\n} }];\n"
+      },
+      "name": "Resumo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14144,
+        800
+      ],
+      "id": "9e4770e2-78a1-4bff-8b15-1e35c14cf52e"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gerar-escolas",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        8352,
+        992
+      ],
+      "webhookId": "gerar-escolas-webhook",
+      "id": "90651af4-141e-4cb5-a894-51545ca14337"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl + $('Config').first().json.urlCurso.replace('{escolaId}', $('Criar Escola').item.json.id) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Extrair Escolas').item.json.curso, { escola: { id: $('Criar Escola').item.json.id } })) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "name": "Criar Curso",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10336,
+        800
+      ],
+      "id": "e280b9d1-c795-4fd3-9581-a93d5eacc390",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        9200,
+        496
+      ],
+      "id": "451ee2e6-9fe2-4ff1-bf85-19a554b7e96a",
+      "name": "When chat message received",
+      "webhookId": "6647e06f-4953-442f-a2a1-667c5244e3e2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        9504,
+        624
+      ],
+      "id": "0693b1b9-7414-409e-a4ed-4d4c5e699a05",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        9504,
+        864
+      ],
+      "id": "59c19af7-2969-4e20-a8fb-fc9dbe36efd3",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "p0P841V53s4KpMpn",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl + $('Config').first().json.urlAvaliacaoCurso.replace('{cursoId}', $('Criar Curso').item.json.id) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Extrair Escolas').item.json.avaliacaoCurso) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "name": "Criar Avaliação do Curso",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10560,
+        800
+      ],
+      "id": "79903466-42fb-4366-864a-fe27f50c71ce",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst escolas = $('Extrair Escolas').all();\nconst escolasCriadas = $('Criar Escola').all();\nconst out = [];\nescolas.forEach((e, i) => {\n  const escolaId = escolasCriadas[i].json.id;\n  (e.json.professores || []).forEach(p => out.push({ json: { escolaId, payload: p } }));\n});\nreturn out;\n"
+      },
+      "name": "Expandir Professores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11232,
+        800
+      ],
+      "id": "4c85b318-9010-4f46-9ed6-b337c17a0ed4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl + $('Config').first().json.urlProfessor.replace('{escolaId}', $json.escolaId) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "name": "Criar Professor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11456,
+        800
+      ],
+      "id": "83ddc74a-1bd5-49db-92e7-ac3fd02891a5",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.baseUrl }}/api/escolas",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Verificar Escolas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11680,
+        800
+      ],
+      "id": "554ef1ac-7138-41a2-86c8-09c1a72160dd",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.baseUrl }}/api/enderecos-escolas",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Verificar Endereços",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11904,
+        800
+      ],
+      "id": "f0656a2b-10e8-4e6d-9980-546f1fdddd40",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.baseUrl }}/api/alunos",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Verificar Alunos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12128,
+        800
+      ],
+      "id": "feea94fa-86ae-496f-aa16-fc21a81fbf1b",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.baseUrl }}/api/avaliacoes-qualidade",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Verificar Avaliações",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12352,
+        800
+      ],
+      "id": "6bf1757c-06a3-4282-bb05-292e11008026",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Lê as listas completas da API e cruza por escola.id\nconst lista = (nome) => {\n  let itens = $(nome).all().map(i => i.json);\n  if (itens.length === 1 && Array.isArray(itens[0].content)) itens = itens[0].content; // caso a API seja paginada\n  return itens.filter(i => i && Object.keys(i).length > 0);\n};\nconst idDaEscola = (r) => r?.escola?.id ?? r?.escolaId ?? null;\nconst idsComRegistro = (nome) =>\n  new Set(lista(nome).map(idDaEscola).filter(v => v !== null && v !== undefined).map(String));\n\nconst escolas = lista('Verificar Escolas').filter(e => e.id !== undefined);\nif (escolas.length === 0) throw new Error('GET /api/escolas não retornou nenhuma escola.');\n\nconst comEndereco = idsComRegistro('Verificar Endereços');\nconst comAluno = idsComRegistro('Verificar Alunos');\nconst comAvaliacao = idsComRegistro('Verificar Avaliações');\nconst criadasAgora = new Set($('Criar Escola').all().map(i => String(i.json.id)));\nconst cursoPorEscola = {};\nfor (const c of lista('Verificar Cursos')) {\n  const id = idDaEscola(c);\n  if (id !== null && id !== undefined && cursoPorEscola[String(id)] === undefined) cursoPorEscola[String(id)] = c.id;\n}\n\nconst pendencias = [];\nfor (const e of escolas) {\n  const id = String(e.id);\n  const falta = [];\n  if (!comEndereco.has(id)) falta.push('endereço');\n  if (!comAluno.has(id)) falta.push('aluno');\n  if (!comAvaliacao.has(id)) falta.push('avaliação de qualidade');\n  if (falta.length) pendencias.push({ id: e.id, nome: e.nome, tipo: e.tipo, falta, nova: criadasAgora.has(id), cursoId: cursoPorEscola[id] ?? null });\n}\n\nreturn [{ json: { totalEscolas: escolas.length, existePendencia: pendencias.length > 0, pendencias } }];\n"
+      },
+      "name": "Validar Escolas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12800,
+        800
+      ],
+      "id": "5e4eef6e-98b0-44a5-8465-e7fdf030c16e"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config').first().json.baseUrl }}/api/cursos",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "name": "Verificar Cursos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12576,
+        800
+      ],
+      "id": "917fb550-32de-487f-9007-e6e60fabfa36",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3426ce31-62e1-4ad4-8118-99dd949e4047",
+              "leftValue": "={{ $json.existePendencia }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Há pendências?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        13024,
+        800
+      ],
+      "id": "82978b9e-d487-45d1-8884-dba30f7cc12f"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst v = $('Validar Escolas').first().json;\nconst cfg = $('Config').first().json;\nconst pendencias = v.pendencias.slice(0, cfg.maxReparos); // limite por execução, para não estourar a IA\nconst itens = pendencias.map(p => ({ id: p.id, nome: p.nome, tipo: p.tipo, precisa: p.falta }));\n\nconst modelo = {\n  reparos: [\n    {\n      id: \"id da escola, igual ao informado\",\n      endereco: { cep: \"00000-000\", logradouro: \"string\", numero: \"string\", bairro: \"string\", cidade: \"string\", estado: \"UF\" },\n      avaliacao: { nota: \"inteiro de 1 a 5\", comentario: \"string\", dataAvaliacao: \"AAAA-MM-DD\" },\n      alunos: [\n        { area: \"urbana ou rural\", distanciaEscola: \"número em km, ex: 5.2\", tipoTransporte: \"a_pe, transporte_escolar, transporte_publico ou proprio\", tempoDeslocamentoMinutos: \"inteiro\" }\n      ]\n    }\n  ]\n};\n\nconst prompt = `Você completa cadastros incompletos de um sistema brasileiro de avaliação de escolas.\n\nPara cada escola abaixo, gere SOMENTE o que está listado em \"precisa\" e omita as demais chaves:\n- \"endereço\": 1 endereço realista na cidade indicada pelo nome da escola (rua, número, bairro, CEP e UF coerentes);\n- \"avaliação de qualidade\": 1 avaliação com nota inteira de 1 a 5, comentário curto e data recente;\n- \"aluno\": exatamente ${cfg.qtdAlunos} alunos. Alunos NÃO têm nome: gere só os indicadores de deslocamento até a escola, de forma coerente (área rural tende a ter distância e tempo maiores).\n\nEscolas:\n${JSON.stringify(itens, null, 2)}\n\nResponda SOMENTE com JSON válido, neste formato (use apenas as chaves necessárias para cada escola e copie o \"id\" informado):\n${JSON.stringify(modelo, null, 2)}`;\n\nreturn [{ json: { prompt, pendencias } }];\n"
+      },
+      "name": "Montar Prompt Reparo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13248,
+        800
+      ],
+      "id": "c1ce0da0-0188-41e4-95e9-ed9e03f81ee0"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        13472,
+        800
+      ],
+      "id": "7ea799a6-81c5-4093-9265-d3169112d6e9",
+      "name": "Basic LLM Chain Reparo"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        13472,
+        1040
+      ],
+      "id": "3bd7c1d5-8d8f-4ab2-ad5e-9f04bcd6dafc",
+      "name": "Google Gemini Chat Model Reparo",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "p0P841V53s4KpMpn",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst resp = $input.first().json;\n\nlet bruto = resp.text ?? resp.output ?? resp.response ?? resp.content;\nif (bruto === undefined) {\n  bruto = (resp.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');\n}\nlet dados;\nif (typeof bruto === 'string') {\n  const texto = bruto.replace(/```json|```/g, '').trim();\n  if (!texto) throw new Error('Gemini (reparo) não retornou conteúdo: ' + JSON.stringify(resp).slice(0, 1500));\n  try {\n    dados = JSON.parse(texto);\n  } catch (e) {\n    throw new Error('JSON do Gemini (reparo) inválido ou cortado (' + e.message + '). Final da resposta: ' + texto.slice(-300));\n  }\n} else {\n  dados = bruto;\n}\nconst lista = Array.isArray(dados) ? dados : dados?.reparos;\nif (!Array.isArray(lista)) throw new Error('Formato inesperado, sem a lista \"reparos\": ' + JSON.stringify(dados).slice(0, 500));\n\nconst cfg = $('Config').first().json;\nconst pendencias = $('Montar Prompt Reparo').first().json.pendencias;\nconst TRANSPORTES = ['a_pe', 'transporte_escolar', 'transporte_publico', 'proprio'];\n\nconst out = [];\nfor (const p of pendencias) {\n  const r = lista.find(x => String(x?.id) === String(p.id)) || lista.find(x => x?.nome === p.nome);\n  if (!r) continue;\n  const escolaId = p.id;\n\n  if (p.falta.includes('endereço') && r.endereco?.logradouro) {\n    const e = r.endereco;\n    out.push({ json: { tipo: 'endereco', escolaId, payload: {\n      cep: e.cep ?? '', logradouro: e.logradouro, numero: e.numero ?? '', bairro: e.bairro ?? '',\n      cidade: e.cidade ?? '', estado: e.estado ?? '', escola: { id: escolaId } } } });\n  }\n  if (p.falta.includes('avaliação de qualidade') && r.avaliacao) {\n    const nota = Math.round(Number(r.avaliacao.nota));\n    out.push({ json: { tipo: 'avaliacao', escolaId, payload: {\n      nota: Math.min(5, Math.max(1, Number.isFinite(nota) ? nota : 3)),\n      comentario: r.avaliacao.comentario || null,\n      dataAvaliacao: r.avaliacao.dataAvaliacao || null } } });\n  }\n  if (p.falta.includes('aluno') && Array.isArray(r.alunos)) {\n    r.alunos.slice(0, cfg.qtdAlunos).forEach(a => out.push({ json: { tipo: 'aluno', escolaId, payload: {\n      area: String(a.area || '').toLowerCase() === 'rural' ? 'rural' : 'urbana',\n      distanciaEscola: Math.round((Number(a.distanciaEscola) || 0) * 100) / 100,\n      tipoTransporte: TRANSPORTES.includes(a.tipoTransporte) ? a.tipoTransporte : 'a_pe',\n      tempoDeslocamentoMinutos: Math.round(Number(a.tempoDeslocamentoMinutos)) || 0,\n      escola: { id: escolaId },\n      curso: p.cursoId ? { id: p.cursoId } : null } } }));\n  }\n}\nif (out.length === 0) throw new Error('O Gemini não devolveu dados utilizáveis para as escolas pendentes.');\nreturn out;\n"
+      },
+      "name": "Montar Reparos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13696,
+        800
+      ],
+      "id": "1f8fa37c-1220-447c-88ac-1717ee00f1f0"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.baseUrl + ($json.tipo === 'endereco' ? $('Config').first().json.urlEndereco.replace('{escolaId}', $json.escolaId) : $json.tipo === 'avaliacao' ? $('Config').first().json.urlAvaliacao.replace('{escolaId}', $json.escolaId) : $('Config').first().json.urlAluno) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "name": "Aplicar Reparo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        13920,
+        800
+      ],
+      "id": "0fc9ef2d-9949-4c13-a231-e74a70a5a197",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Iniciar": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Listar Escolas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar Escolas": {
+      "main": [
+        [
+          {
+            "node": "Montar Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Prompt": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Escolas": {
+      "main": [
+        [
+          {
+            "node": "Criar Escola",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Escola": {
+      "main": [
+        [
+          {
+            "node": "Criar Endereço",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Endereço": {
+      "main": [
+        [
+          {
+            "node": "Criar Avaliação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Avaliação": {
+      "main": [
+        [
+          {
+            "node": "Criar Curso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Curso": {
+      "main": [
+        [
+          {
+            "node": "Criar Avaliação do Curso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir Alunos": {
+      "main": [
+        [
+          {
+            "node": "Criar Aluno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Aluno": {
+      "main": [
+        [
+          {
+            "node": "Expandir Professores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Extrair Escolas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Avaliação do Curso": {
+      "main": [
+        [
+          {
+            "node": "Expandir Alunos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir Professores": {
+      "main": [
+        [
+          {
+            "node": "Criar Professor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Professor": {
+      "main": [
+        [
+          {
+            "node": "Verificar Escolas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Escolas": {
+      "main": [
+        [
+          {
+            "node": "Verificar Endereços",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Endereços": {
+      "main": [
+        [
+          {
+            "node": "Verificar Alunos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Alunos": {
+      "main": [
+        [
+          {
+            "node": "Verificar Avaliações",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Avaliações": {
+      "main": [
+        [
+          {
+            "node": "Verificar Cursos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Escolas": {
+      "main": [
+        [
+          {
+            "node": "Há pendências?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Cursos": {
+      "main": [
+        [
+          {
+            "node": "Validar Escolas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Prompt Reparo": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain Reparo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain Reparo": {
+      "main": [
+        [
+          {
+            "node": "Montar Reparos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Reparos": {
+      "main": [
+        [
+          {
+            "node": "Aplicar Reparo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar Reparo": {
+      "main": [
+        [
+          {
+            "node": "Resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Há pendências?": {
+      "main": [
+        [
+          {
+            "node": "Montar Prompt Reparo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model Reparo": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain Reparo",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "1d8c0853-ecce-4933-bae7-a4d8fc9cb6f6",
+  "meta": {
+    "instanceId": "cf08732653c749b9fc13c5c21ff93414e078551c813032dcf9a8aaa4f89d4e59"
+  },
+  "nodeGroups": [],
+  "id": "G2iIHsmidSdHCX6g",
+  "tags": []
+}
